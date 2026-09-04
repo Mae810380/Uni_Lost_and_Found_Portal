@@ -18,8 +18,8 @@ $model = new UserModel();
 $user = $model->findUser($conn, $studentId);
 
 if ($user && password_verify($password, $user['password'])) {
-    if (strcasecmp(trim($user['role']), 'Finder') !== 0) {
-        $_SESSION['error'] = 'This package is for Finder account only.';
+    if (strcasecmp(trim($user['role']), 'Staff') !== 0) {
+        $_SESSION['error'] = 'This package is for Staff account only.';
         header('Location: ../View/login.php');
         exit();
     }
@@ -28,7 +28,7 @@ if ($user && password_verify($password, $user['password'])) {
     $_SESSION['user_id'] = $user['user_id'];
     $_SESSION['student_id'] = $user['student_id'];
     $_SESSION['name'] = $user['name'];
-    $_SESSION['role'] = 'Finder';
+    $_SESSION['role'] = 'Staff';
     setcookie('student_id', $user['student_id'], time() + 3600, '/');
     header('Location: ../View/dashboard.php');
     exit();

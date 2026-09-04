@@ -5,7 +5,7 @@ require_once "../Model/ItemModel.php";
 require_once "../Model/ClaimModel.php";
 require_once "../Model/UserModel.php";
 
-if (!($_SESSION['isLoggedIn'] ?? false) || ($_SESSION['role'] ?? '') !== 'Finder') {
+if (!($_SESSION['isLoggedIn'] ?? false) || ($_SESSION['role'] ?? '') !== 'Staff') {
     header('Location: login.php');
     exit();
 }
@@ -20,78 +20,80 @@ $myClaims = $claimModel->getMyClaims($conn, $_SESSION['user_id']);
 $error = $_SESSION['error'] ?? '';
 $success = $_SESSION['success'] ?? '';
 unset($_SESSION['error'], $_SESSION['success']);
+$pendingItems = $itemModel->getPendingItems($conn);
+$approvedClaimHistory = $claimModel->getApprovedClaimHistory($conn);
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Finder Dashboard - AIUB Lost & Found</title>
+    <title>Staff Dashboard - AIUB Lost & Found</title>
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body class="dashboard-body">
 <header class="topbar">
     <div><strong>AIUB Lost & Found</strong></div>
-    <div><?php echo ($_SESSION['name']); ?> | Finder | <a href="../Controller/logout.php">Logout</a></div>
+    <div><?php echo htmlspecialchars($_SESSION['name']); ?> | Staff | <a href="../Controller/logout.php">Logout</a></div>
 </header>
 
 <main class="container">
     <section class="welcome">
-        <h1>Finder Dashboard</h1>
-        <p>Welcome, <?php echo ($_SESSION['name']); ?>!</p>
-        <p>University ID: <strong><?php echo ($_SESSION['student_id']); ?></strong></p>
+        <h1>Staff Dashboard</h1>
+        <p>Welcome, <?php echo htmlspecialchars($_SESSION['name']); ?>!</p>
+        <p>University ID: <strong><?php echo htmlspecialchars($_SESSION['student_id']); ?></strong></p>
     </section>
 
-    <?php if ($error): ?><p class="error"><?php echo ($error); ?></p><?php endif; ?>
-    <?php if ($success): ?><p class="success"><?php echo ($success); ?></p><?php endif; ?>
+    <?php if ($error): ?><p class="error"><?php echo htmlspecialchars($error); ?></p><?php endif; ?>
+    <?php if ($success): ?><p class="success"><?php echo htmlspecialchars($success); ?></p><?php endif; ?>
 
     <section class="card">
-        <h2>Finder Features</h2>
+        <h2>Staff Features</h2>
         <ol>
-                <li>Post Found Item</li>
-                <li>Record Exact Found Location</li>
-                <li>View Own Found-Item History</li>
+                <li>Verify/Reject Item Reports</li>
+                <li>Review Admin-Approved Claims</li>
+                <li>Mark Item as Returned</li>
+                <li>View Pending Reports</li>
 
         </ol>
     </section>
 
     <section class="card">
-        <h2>Profile Update</h2>
+        <h2>Common Account Management</h2>
         <form action="../Controller/profile.php" method="post">
-            <input type="text" name="name" value="<?php echo ($_SESSION['name']); ?>" placeholder="Name" required>
+            <input type="text" name="name" value="<?php echo htmlspecialchars($_SESSION['name']); ?>" placeholder="Name" required>
             <input type="email" name="email" placeholder="Email" required>
             <input type="password" name="password" placeholder="New password (optional)">
             <button type="submit">Update Profile</button>
         </form>
     </section>
 
-    <section class="card" id="report">
-        <h2>Post a Found Item</h2>
-        <form action="../Controller/addItem.php" method="post">
-            <input type="hidden" name="item_type" value="Found">
-            <label>Item Name</label><input type="text" name="item_name" placeholder="Black Wallet" required>
-            <label>Category</label>
-            <select name="category" required>
-                <option value="">Select</option>
-                <option>Electronics</option>
-                <option>Wallet</option>
-                <option>Bag</option>
-                <option>Books</option>
-                <option>Keys</option>
-                <option>Other</option>
-            </select>
-            <label>Description</label>
-            <textarea name="description" placeholder="Write simple details about the item" required></textarea>
-            <label>Exact Found Location</label>
-            <input type="text" name="location" placeholder="Campus 4, Library" required>
-            <label>Date Found</label>
-            <input type="date" name="item_date" required>
-            <button type="submit">Submit Found Item</button>
-        </form>
+    <section class="card">
+        <h2>Pending Item Reports</h2>
+        <?php if ($pendingItems->num_rows == 0): ?><p class="small">No pending reports.</p><?php endif; ?>
+        <?php while ($item = $pendingItems->fetch_assoc()): ?>
+            <div class="list-row">
+                <strong><?php echo htmlspecialchars($item['item_name']); ?></strong> (<?php echo htmlspecialchars($item['item_type']); ?>) - <?php echo htmlspecialchars($item['student_id']); ?>
+                <form action="../Controller/staffAction.php" method="post" class="inline-form">
+                    <input type="hidden" name="action" value="verify_item"><input type="hidden" name="item_id" value="<?php echo $item['item_id']; ?>">
+                    <button name="status" value="Approved">Approve Report</button><button name="status" value="Rejected">Reject Report</button>
+                </form>
+            </div>
+        <?php endwhile; ?>
     </section>
     <section class="card">
-        <h2>My Found Item History</h2>
-        <?php if ($myItems->num_rows == 0): ?><p class="small">No found items posted yet.</p><?php endif; ?>
-        <?php while ($item = $myItems->fetch_assoc()): ?>
-            <div class="list-row"><strong><?php echo ($item['item_name']); ?></strong> - <?php echo ($item['status']); ?><br><span class="small">Found at: <?php echo htmlspecialchars($item['location']); ?></span></div>
+        <h2>Admin-Approved Claims / Return</h2>
+        <p class="small">After Admin approves a claim, Staff completes the handover and marks the item returned.</p>
+        <?php if ($approvedClaimHistory->num_rows == 0): ?><p class="small">No approved claims yet.</p><?php endif; ?>
+        <?php while ($history = $approvedClaimHistory->fetch_assoc()): ?>
+            <div class="list-row">
+                <strong><?php echo htmlspecialchars($history['item_name']); ?></strong> - Claimer: <?php echo htmlspecialchars($history['claimer_id']); ?><br>
+                Admin Approval: Approved - Item Status: <?php echo htmlspecialchars($history['item_status']); ?>
+                <?php if ($history['item_status'] !== 'Returned'): ?>
+                <form action="../Controller/staffAction.php" method="post" class="inline-form">
+                    <input type="hidden" name="action" value="mark_returned"><input type="hidden" name="item_id" value="<?php echo $history['item_id']; ?>">
+                    <button type="submit">Mark as Returned</button>
+                </form>
+                <?php else: ?><strong> - Returned</strong><?php endif; ?>
+            </div>
         <?php endwhile; ?>
     </section>
 
